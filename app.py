@@ -205,6 +205,39 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     step = waiting_for[user_id]
 
+    if step == 'broadcast':
+        text = update.message.text
+        count = 0
+        for uid in ALLOWED_USERS.union({ADMIN_ID}):
+            try:
+                await context.bot.send_message(uid, f"📢 Admin bildirişi:\n\n{text}")
+                count += 1
+            except:
+                pass
+        await update.message.reply_text(f"✅ Bildiriş {count} ulanyja ugradyldy.")
+        waiting_for.pop(user_id)
+        return
+
+    elif step == 'remove_user':
+        try:
+            rem_id = int(update.message.text)
+            ALLOWED_USERS.discard(rem_id)
+            await update.message.reply_text("❌ Ulanyjy aýryldy.")
+        except:
+            await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
+        waiting_for.pop(user_id)
+        return
+
+    elif step == 'add_user':   # ✅ Şu ýerde goşmaly
+        try:
+            new_id = int(update.message.text)
+            ALLOWED_USERS.add(new_id)
+            await update.message.reply_text("✅ Ulanyjy goşuldy.")
+        except:
+            await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
+        waiting_for.pop(user_id)
+        return
+
 # ✅ Ulanyjy goşmak
     elif step == 'add_user':
         try:
