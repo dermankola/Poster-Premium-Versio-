@@ -187,28 +187,45 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
 
 # Admin üçin ulanyjy dolandyryşy
-if user_id == ADMIN_ID and user_id in waiting_for:
-    step = waiting_for[user_id]
+async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
 
-    if step == 'add_user':
-        try:
-            new_id = int(update.message.text)
-            ALLOWED_USERS.add(new_id)
-            await update.message.reply_text("✅ Ulanyjy goşuldy.")
-        except:
-            await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
-        waiting_for.pop(user_id)
-        return
+    if user_id == ADMIN_ID and user_id in waiting_for:
+        step = waiting_for[user_id]
 
-    elif step == 'remove_user':
-        try:
-            rem_id = int(update.message.text)
-            ALLOWED_USERS.discard(rem_id)
-            await update.message.reply_text("❌ Ulanyjy aýryldy.")
-        except:
-            await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
-        waiting_for.pop(user_id)
-        return
+        if step == 'add_user':
+            try:
+                new_id = int(update.message.text)
+                ALLOWED_USERS.add(new_id)
+                await update.message.reply_text("✅ Ulanyjy goşuldy.")
+            except:
+                await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
+            waiting_for.pop(user_id)
+            return
+
+        elif step == 'remove_user':
+            try:
+                rem_id = int(update.message.text)
+                ALLOWED_USERS.discard(rem_id)
+                await update.message.reply_text("❌ Ulanyjy aýryldy.")
+            except:
+                await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
+            waiting_for.pop(user_id)
+            return
+
+        elif step == 'announcement':
+            announcement_text = update.message.text
+            context.user_data['announcement_text'] = announcement_text
+
+            buttons = [
+                [InlineKeyboardButton("✅ Tassyklamak", callback_data='confirm_announcement')],
+                [InlineKeyboardButton("❌ Goýbolsun", callback_data='cancel_announcement')]
+            ]
+            await update.message.reply_text(
+                f"📢 Bildiriş:\n\n{announcement_text}\n\nTassykla?",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+            return
 
     elif step == 'announcement':
         # Bildiriş girizildi — tassyklamak soralýar
