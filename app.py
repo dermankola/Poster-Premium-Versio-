@@ -2,25 +2,22 @@ import asyncio
 import time
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    ContextTypes,
-    filters
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ContextTypes, filters
 )
 
-# 👤 ADMIN CONFIGURATION
-ADMIN_ID = 8143084360
-ALLOWED_USERS = set()  # Admin goşar
+# 👤 ADMIN & KANAL KONFIGURASIÝASY
+ADMIN_ID = 8143084360  # <-- Sanlar düzgün saklanýar
+ALLOWED_USERS = set()
+REQUIRED_CHANNELS = ['@VPNDAYKA', '@DaykaVPNS', '@Bazaroff_Vpns', '@Lion_Servers', '@Baburoff_VPN', '@Dayka_Store_Chatt']  # <- Özüňiziň kanallaryňyzy şu ýere ýaz
 
-# 🗂️ Session & Scheduling Data
+# 🗂️ Sesssiýa maglumatlary
 user_sessions = {}
 waiting_for = {}
 scheduled_posts = []
 previous_messages = {}
 
-# 🔧 Utility: Main Menu Keyboard
+# 🔧 Menýu klawiaturasy
 def main_menu_keyboard(user_id=None):
     buttons = [
         [InlineKeyboardButton("📤 Reklama Goýmаk", callback_data='reklama')],
@@ -34,17 +31,60 @@ def main_menu_keyboard(user_id=None):
 # 🚀 START Handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    await update.message.reply_text(
-        "👋 Hoş geldiňiz! Aşakdaky menýulardan birini saýlaň:",
-        reply_markup=main_menu_keyboard(user_id)
-    )
+    is_member_all = True
 
-# 🤖 BUTTON Handler
+    for channel in REQUIRED_CHANNELS:
+        try:
+            member = await context.bot.get_chat_member(channel, user_id)
+            if member.status not in ['member', 'administrator', 'creator']:
+                is_member_all = False
+                break
+        except:
+            is_member_all = False
+            break
+
+    if is_member_all:
+        ALLOWED_USERS.add(user_id)
+        await update.message.reply_text(
+            "👋 Hoş geldiňiz! Aşakdaky menýulardan birini saýlaň:",
+            reply_markup=main_menu_keyboard(user_id)
+        )
+    else:
+        buttons = [[InlineKeyboardButton(f"➕ {channel}", url=f"https://t.me/{channel[1:]}")] for channel in REQUIRED_CHANNELS]
+        buttons.append([InlineKeyboardButton("✅ Agza boldum", callback_data="check_membership")])
+        await update.message.reply_text(
+            "❗ Iltimas, aşakdaky kanallara goşulyň we soň '✅ Agza boldum' düwmesine basyň:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+# 🔘 BUTTON Handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
     data = query.data
+
+    if data == "check_membership":
+        is_member_all = True
+        for channel in REQUIRED_CHANNELS:
+            try:
+                member = await context.bot.get_chat_member(channel, user_id)
+                if member.status not in ['member', 'administrator', 'creator']:
+                    is_member_all = False
+                    break
+            except:
+                is_member_all = False
+                break
+
+        if is_member_all:
+            ALLOWED_USERS.add(user_id)
+            await query.edit_message_text(
+                "🎉 Şowly! Indi botdan peýdalanyp bilersiňiz.",
+                reply_markup=main_menu_keyboard(user_id)
+            )
+        else:
+            await query.answer("❗ Käbir kanallara heniz goşulmadyk ýaly!", show_alert=True)
+        return
 
     if data == 'admin_panel' and user_id == ADMIN_ID:
         await query.edit_message_text(
@@ -53,7 +93,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("➕ Ulanyjy goş", callback_data='add_user')],
                 [InlineKeyboardButton("➖ Ulanyjy aýyr", callback_data='remove_user')],
                 [InlineKeyboardButton("📋 Sanawy gör", callback_data='list_users')],
-                [InlineKeyboardButton("📢 Bildiriş Ugrat", callback_data='send_announcement')],
+                [InlineKeyboardButton("📢 Bildiriş ugrat", callback_data='broadcast')],
                 [InlineKeyboardButton("⬅ Yza", callback_data='back')]
             ])
         )
@@ -70,45 +110,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not ALLOWED_USERS:
             await query.edit_message_text("📭 Hiç hili ulanyjy goşulmady.")
         else:
-            lines = []
+            text = "✅ Rugsat berlen ulanyjylar:\n"
             for uid in ALLOWED_USERS:
                 try:
                     user = await context.bot.get_chat(uid)
-                    display = f"@{user.username}" if user.username else user.first_name
-                    lines.append(f"{uid} {display}")
+                    username = f"@{user.username}" if user.username else "—"
                 except:
-                    lines.append(f"{uid} ❌ (ulanyjy tapylmady)")
-            text = "✅ Rugsat berlen ulanyjylar:\n" + "\n".join(lines)
+                    username = "—"
+                text += f"{uid} {username}\n"
             await query.edit_message_text(text)
 
-    elif data == 'send_announcement' and user_id == ADMIN_ID:
-        waiting_for[user_id] = 'announcement'
-        await query.edit_message_text("✍ Ugratmaly bildirişi giriziň:")
-
-    elif data == 'confirm_announcement' and user_id == ADMIN_ID:
-        announcement_text = context.user_data.get('announcement_text')
-        sent_count = 0
-        failed_users = []
-
-        for uid in ALLOWED_USERS.union({ADMIN_ID}):
-            try:
-                await context.bot.send_message(uid, f"📢 Bildiriş:\n\n{announcement_text}")
-                sent_count += 1
-            except:
-                failed_users.append(uid)
-
-        result_msg = f"✅ Bildiriş {sent_count} ulanyja ugradyldy."
-        if failed_users:
-            result_msg += f"\n⚠️ Ugratmak başartmady: {', '.join(str(u) for u in failed_users)}"
-
-        await query.edit_message_text(result_msg)
-        waiting_for.pop(user_id, None)
-        context.user_data.pop('announcement_text', None)
-
-    elif data == 'cancel_announcement' and user_id == ADMIN_ID:
-        waiting_for.pop(user_id, None)
-        context.user_data.pop('announcement_text', None)
-        await query.edit_message_text("❌ Bildiriş ýatyryldy.")
+    elif data == 'broadcast' and user_id == ADMIN_ID:
+        waiting_for[user_id] = 'broadcast'
+        await query.edit_message_text("📢 Ugratmaly bildirişiňizi ýazyp iberiň:")
 
     elif data == 'back':
         await query.edit_message_text("🔙 Yza gaýdýarys...", reply_markup=main_menu_keyboard(user_id))
@@ -184,151 +198,135 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # 💬 MESSAGE Handler
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-
-# Admin üçin ulanyjy dolandyryşy
-async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    if user_id == ADMIN_ID and user_id in waiting_for:
-        step = waiting_for[user_id]
-
-        if step == 'add_user':
-            try:
-                new_id = int(update.message.text)
-                ALLOWED_USERS.add(new_id)
-                await update.message.reply_text("✅ Ulanyjy goşuldy.")
-            except:
-                await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
-            waiting_for.pop(user_id)
-            return
-
-        elif step == 'remove_user':
-            try:
-                rem_id = int(update.message.text)
-                ALLOWED_USERS.discard(rem_id)
-                await update.message.reply_text("❌ Ulanyjy aýryldy.")
-            except:
-                await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
-            waiting_for.pop(user_id)
-            return
-
-        elif step == 'announcement':
-            announcement_text = update.message.text
-            context.user_data['announcement_text'] = announcement_text
-
-            buttons = [
-                [InlineKeyboardButton("✅ Tassyklamak", callback_data='confirm_announcement')],
-                [InlineKeyboardButton("❌ Goýbolsun", callback_data='cancel_announcement')]
-            ]
-            await update.message.reply_text(
-                f"📢 Bildiriş:\n\n{announcement_text}\n\nTassykla?",
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-            return
-
-    elif step == 'announcement':
-        # Bildiriş girizildi — tassyklamak soralýar
-        context.user_data['announcement_text'] = update.message.text
-        waiting_for[user_id] = 'announcement_confirm'
-        await update.message.reply_text(
-            f"📢 Bildiriş mazmuny:\n\n{update.message.text}\n\nTassyklamak isleýärsiňizmi?",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ Tassyklamak", callback_data="confirm_announcement")],
-                [InlineKeyboardButton("❌ Goýbolsun", callback_data="cancel_announcement")]
-            ])
-        )
+    if user_id not in waiting_for:
         return
 
-    elif step == 'announcement_confirm':
-        # Bu ädim button_callback arkaly ýerine ýetirilýär — howpsuzlyk üçin saklanyp galýar
+    step = waiting_for[user_id]
+
+# ✅ Ulanyjy goşmak
+    elif step == 'add_user':
+        try:
+            new_id = int(update.message.text)
+            ALLOWED_USERS.add(new_id)
+            await update.message.reply_text("✅ Ulanyjy goşuldy.")
+        except:
+            await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
+        waiting_for.pop(user_id)
         return
 
-    # Adaty ulanyjy üçin:
+    # ✅ Admin bildiriş ugratmak
+    if step == 'broadcast':
+        text = update.message.text
+        count = 0
+        for uid in ALLOWED_USERS.union({ADMIN_ID}):
+            try:
+                await context.bot.send_message(uid, f"📢 Admin bildirişi:\n\n{text}")
+                count += 1
+            except:
+                pass
+        await update.message.reply_text(f"✅ Bildiriş {count} ulanyja ugradyldy.")
+        waiting_for.pop(user_id)
+        return
+
+    # ✅ Ulanyjy aýyrmak
+    elif step == 'remove_user':
+        try:
+            rem_id = int(update.message.text)
+            ALLOWED_USERS.discard(rem_id)
+            await update.message.reply_text("❌ Ulanyjy aýryldy.")
+        except:
+            await update.message.reply_text("⚠️ ID san görnüşinde bolmaly.")
+        waiting_for.pop(user_id)
+        return
+
+    # ⛔ Ulanyjy rugsat berlen däl bolsa geçme
     if user_id != ADMIN_ID and user_id not in ALLOWED_USERS:
         return
 
-    if user_id in waiting_for:
-        step = waiting_for[user_id]
-        sess = user_sessions[user_id]
+    sess = user_sessions.get(user_id, {})
+    
+    # ✅ Surat ugratmak ädimi
+    if step == 'photo' and update.message.photo:
+        sess['photo'] = update.message.photo[-1].file_id
+        sess['type'] = 'surat'
+        user_sessions[user_id] = sess
+        waiting_for[user_id] = 'caption'
+        await update.message.reply_text("📝 Surata caption giriziň:")
 
-        if step == 'photo' and update.message.photo:
-            sess['photo'] = update.message.photo[-1].file_id
-            waiting_for[user_id] = 'caption'
-            await update.message.reply_text("📝 Surata caption giriziň:")
+    # ✅ Caption girizmek
+    elif step == 'caption':
+        sess['caption'] = update.message.text
+        waiting_for[user_id] = 'minute'
+        await update.message.reply_text("🕒 Her näçe minutda ugradylsyn?")
 
-        elif step == 'text':
-            sess['text'] = update.message.text
-            waiting_for[user_id] = 'minute'
-            await update.message.reply_text("🕒 Her näçe minutda ugradylsyn? (mysal: 10)")
+    # ✅ Tekst post
+    elif step == 'text':
+        sess['text'] = update.message.text
+        sess['type'] = 'text'
+        waiting_for[user_id] = 'minute'
+        await update.message.reply_text("🕒 Her näçe minutda ugradylsyn?")
 
-        elif step == 'caption':
-            sess['caption'] = update.message.text
-            waiting_for[user_id] = 'minute'
-            await update.message.reply_text("🕒 Her näçe minutda ugradylsyn? (mysal: 10)")
+    # ✅ Minut soramak
+    elif step == 'minute':
+        try:
+            sess['minute'] = int(update.message.text)
+            waiting_for[user_id] = 'day'
+            await update.message.reply_text("📅 Näçe gün dowam etsin?")
+        except:
+            await update.message.reply_text("⚠️ San bilen giriziň!")
 
-        elif step == 'minute':
-            try:
-                sess['minute'] = int(update.message.text)
-                waiting_for[user_id] = 'day'
-                await update.message.reply_text("📅 Näçe gün dowam etsin? (mysal: 2)")
-            except:
-                await update.message.reply_text("⚠️ Minuty san bilen giriziň!")
+    # ✅ Gün soramak
+    elif step == 'day':
+        try:
+            sess['day'] = int(update.message.text)
+            waiting_for[user_id] = 'channel'
+            await update.message.reply_text("📢 Haýsy kanal? (@username görnüşinde)")
+        except:
+            await update.message.reply_text("⚠️ San bilen giriziň!")
 
-        elif step == 'day':
-            try:
-                sess['day'] = int(update.message.text)
-                waiting_for[user_id] = 'channel'
-                await update.message.reply_text("📢 Haýsy kanal? (@username görnüşinde)")
-            except:
-                await update.message.reply_text("⚠️ Günü san bilen giriziň!")
+    # ✅ Kanal we soňky ýatyrma
+    elif step == 'channel':
+        sess['channel'] = update.message.text.strip()
+        waiting_for.pop(user_id)
 
-        elif step == 'channel':
-            sess['channel'] = update.message.text.strip()
-            waiting_for.pop(user_id)
+        post = {
+            'user_id': user_id,
+            'type': sess['type'],
+            'minute': sess['minute'],
+            'day': sess['day'],
+            'channel': sess['channel'],
+            'next_time': time.time(),
+            'sent_count': 0,
+            'max_count': (sess['day'] * 24 * 60) // sess['minute']
+        }
 
-            post = {
-                'user_id': user_id,
-                'type': sess['type'],
-                'minute': sess['minute'],
-                'day': sess['day'],
-                'channel': sess['channel'],
-                'next_time': time.time(),
-                'sent_count': 0,
-                'max_count': (sess['day'] * 24 * 60) // sess['minute']
-            }
-            if sess['type'] == 'surat':
-                post['photo'], post['caption'] = sess['photo'], sess['caption']
-            else:
-                post['text'] = sess['text']
-            scheduled_posts.append(post)
-            await update.message.reply_text("✅ Post goşuldy, awtomat goýulýar.")
+        if sess['type'] == 'surat':
+            post['photo'], post['caption'] = sess['photo'], sess['caption']
+        else:
+            post['text'] = sess['text']
 
-# ⏰ SCHEDULER
+        scheduled_posts.append(post)
+        await update.message.reply_text("✅ Post üstünlikli döredildi.")
+
+# ⏰ Post Scheduler
 async def scheduler(app):
     while True:
         now = time.time()
         for post in scheduled_posts:
-            # ⛔ 1. Paused ýa-da limiti dolan bolsa geç
             if post.get('paused') or post['sent_count'] >= post['max_count']:
                 continue
-            
-            # ⛔ 2. Ulanyjy rugsatsyz bolsa, posty duruz
             if post['user_id'] not in ALLOWED_USERS and post['user_id'] != ADMIN_ID:
                 post['paused'] = True
                 continue
-
-            # ✅ 3. Wagt gelipdir, post goýulýar
             if now >= post['next_time']:
                 try:
-                    # Öňki posty poz
                     if post['channel'] in previous_messages:
                         try:
                             await app.bot.delete_message(post['channel'], previous_messages[post['channel']])
                         except:
                             pass
-
-                    # Täze post ugrat
                     if post['type'] == 'surat':
                         msg = await app.bot.send_photo(post['channel'], post['photo'], caption=post['caption'])
                     else:
@@ -341,12 +339,14 @@ async def scheduler(app):
                     print(f"Ugradyp bolmady: {e}")
         await asyncio.sleep(30)
 
-# ✅ MAIN START
+# 🔁 Main
 async def main():
-    app = ApplicationBuilder().token("8021702862:AAHUPIGxetCj_wCAJ_4KauaAiEg4jJVvqoA").build()
+    app = ApplicationBuilder().token("7991348150:AAF75OU3trKi4pVovGZpSOoC7xsVbMlkOt8").build()  # Bot tokeniňizi şu ýere goýuň
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT | filters.PHOTO, message_handler))
+
     asyncio.create_task(scheduler(app))
     print("🤖 Bot işläp başlady...")
     await app.run_polling()
