@@ -89,7 +89,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     waiting_for[user_id] = 'announcement'
     await query.edit_message_text("✍ Ugratmaly bildirişi giriziň:")
 
-elif data == 'confirm_announcement' and user_id == ADMIN_ID:
+    elif data == 'confirm_announcement' and user_id == ADMIN_ID:
     announcement_text = context.user_data.get('announcement_text')
     sent_count = 0
     failed_users = []
@@ -109,7 +109,7 @@ elif data == 'confirm_announcement' and user_id == ADMIN_ID:
     waiting_for.pop(user_id, None)
     context.user_data.pop('announcement_text', None)
 
-elif data == 'cancel_announcement' and user_id == ADMIN_ID:
+    elif data == 'cancel_announcement' and user_id == ADMIN_ID:
     waiting_for.pop(user_id, None)
     context.user_data.pop('announcement_text', None)
     await query.edit_message_text("❌ Bildiriş ýatyryldy.")
