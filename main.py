@@ -44,7 +44,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-
     data = query.data
 
     if data == 'admin_panel' and user_id == ADMIN_ID:
@@ -68,51 +67,48 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🆔 Aýyrmaly ulanyjynyň ID-sini giriziň:")
 
     elif data == 'list_users' and user_id == ADMIN_ID:
-    if not ALLOWED_USERS:
-        await query.edit_message_text("📭 Hiç hili ulanyjy goşulmady.")
-    else:
-        lines = []
-        for uid in ALLOWED_USERS:
-            try:
-                user = await context.bot.get_chat(uid)
-                if user.username:
-                    display = f"@{user.username}"
-                else:
-                    display = user.first_name
-                lines.append(f"{uid} {display}")
-            except:
-                lines.append(f"{uid} ❌ (ulanyjy tapylmady)")
-        text = "✅ Rugsat berlen ulanyjylar:\n" + "\n".join(lines)
-        await query.edit_message_text(text)
+        if not ALLOWED_USERS:
+            await query.edit_message_text("📭 Hiç hili ulanyjy goşulmady.")
+        else:
+            lines = []
+            for uid in ALLOWED_USERS:
+                try:
+                    user = await context.bot.get_chat(uid)
+                    display = f"@{user.username}" if user.username else user.first_name
+                    lines.append(f"{uid} {display}")
+                except:
+                    lines.append(f"{uid} ❌ (ulanyjy tapylmady)")
+            text = "✅ Rugsat berlen ulanyjylar:\n" + "\n".join(lines)
+            await query.edit_message_text(text)
 
     elif data == 'send_announcement' and user_id == ADMIN_ID:
-    waiting_for[user_id] = 'announcement'
-    await query.edit_message_text("✍ Ugratmaly bildirişi giriziň:")
+        waiting_for[user_id] = 'announcement'
+        await query.edit_message_text("✍ Ugratmaly bildirişi giriziň:")
 
     elif data == 'confirm_announcement' and user_id == ADMIN_ID:
-    announcement_text = context.user_data.get('announcement_text')
-    sent_count = 0
-    failed_users = []
+        announcement_text = context.user_data.get('announcement_text')
+        sent_count = 0
+        failed_users = []
 
-    for uid in ALLOWED_USERS.union({ADMIN_ID}):
-        try:
-            await context.bot.send_message(uid, f"📢 Bildiriş:\n\n{announcement_text}")
-            sent_count += 1
-        except:
-            failed_users.append(uid)
+        for uid in ALLOWED_USERS.union({ADMIN_ID}):
+            try:
+                await context.bot.send_message(uid, f"📢 Bildiriş:\n\n{announcement_text}")
+                sent_count += 1
+            except:
+                failed_users.append(uid)
 
-    result_msg = f"✅ Bildiriş {sent_count} ulanyja ugradyldy."
-    if failed_users:
-        result_msg += f"\n⚠️ Ugratmak başartmady: {', '.join(str(u) for u in failed_users)}"
+        result_msg = f"✅ Bildiriş {sent_count} ulanyja ugradyldy."
+        if failed_users:
+            result_msg += f"\n⚠️ Ugratmak başartmady: {', '.join(str(u) for u in failed_users)}"
 
-    await query.edit_message_text(result_msg)
-    waiting_for.pop(user_id, None)
-    context.user_data.pop('announcement_text', None)
+        await query.edit_message_text(result_msg)
+        waiting_for.pop(user_id, None)
+        context.user_data.pop('announcement_text', None)
 
     elif data == 'cancel_announcement' and user_id == ADMIN_ID:
-    waiting_for.pop(user_id, None)
-    context.user_data.pop('announcement_text', None)
-    await query.edit_message_text("❌ Bildiriş ýatyryldy.")
+        waiting_for.pop(user_id, None)
+        context.user_data.pop('announcement_text', None)
+        await query.edit_message_text("❌ Bildiriş ýatyryldy.")
 
     elif data == 'back':
         await query.edit_message_text("🔙 Yza gaýdýarys...", reply_markup=main_menu_keyboard(user_id))
