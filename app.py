@@ -7,30 +7,32 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
-import asyncio
 
 TOKEN = "7668843152:AAG58tszCSeS_kiP0mGP6vWLLFcNPTLwgdk"
 adminler = {8143084360}
 
-kanallar = [
-    ("𝐎𝐨𝐭 𝐪𝐞𝐶", "https://t.me/mega_keys"),
-    ("𝐋𝐞𝐨 𝐒𝐨𝐫𝐞𝐫𝐨𝐭 🦁🔐", "https://t.me/Lion_Servers"),
-    ("𝔺𝔢𝕋𝔨 𝔿𝔺𝔽 𝔬𝕋𝕀𝕀", "https://t.me/VPNDayka")
-]
-
+kanallar = []
 vpn_kody = "🟢 Täze VPN: DARKTUNNEL-123456"
 banlananlar = []
-ilkigirenler = set()
 ulanyjylar = set()
+
+def agzalygy_barla(user_id, context):
+    not_joined = []
+    for name, url in kanallar:
+        kanal_username = url.split("/")[-1]
+        try:
+            member = context.bot.get_chat_member(chat_id=f"@{kanal_username}", user_id=user_id)
+            if member.status in ["left", "kicked"]:
+                not_joined.append(name)
+        except:
+            not_joined.append(name)
+    return not_joined
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-
-    is_ilki = user_id not in ilkigirenler
-    ilkigirenler.add(user_id)
     ulanyjylar.add(user_id)
 
-    if user_id in banlananlar and not is_ilki:
+    if user_id in banlananlar:
         await update.message.reply_text("🚫 Siz banlandyňyz.")
         return
 
@@ -39,11 +41,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kanal_buttons,
         [InlineKeyboardButton("✅ Kody alyň", callback_data="kody_al")]
     ])
-
-    await update.message.reply_text(
-        "👋 Salam! Aşakdaky kanallara goşulyň we VPN kody alyň:",
-        reply_markup=keyboard
-    )
+    await update.message.reply_text("👋 Kanallara goşulyň we VPN kody alyň:", reply_markup=keyboard)
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -52,7 +50,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "kody_al":
         if user_id in banlananlar:
-            await query.message.reply_text("\ud83d\udeab Siz banlandy\u0148yz.")
+            await query.message.reply_text("🚫 Siz banlandyňyz.")
             return
 
         not_joined = []
@@ -62,174 +60,164 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 member = await context.bot.get_chat_member(chat_id=f"@{kanal_username}", user_id=user_id)
                 if member.status in ["left", "kicked"]:
                     not_joined.append(name)
-            except Exception as e:
-                print(f"Kanala barlagda ýalňyşlyk: {e}")
+            except:
                 not_joined.append(name)
 
         if not_joined:
-            await query.message.reply_text("\ud83d\udccb Iltimas, aşakdaky kanallara agza boluň:\n" + "\n".join(f"• {ad}" for ad in not_joined))
+            await query.message.reply_text("📛 Iltimas, şu kanallara goşulyň:\n" + "\n".join(f"• {n}" for n in not_joined))
             return
 
         await query.message.reply_text(vpn_kody)
 
-async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in adminler:
-        return
-    admin_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("\u274c Ban ulanyjy", callback_data="banla")],
-        [InlineKeyboardButton("\u267b\ufe0f Ban aç", callback_data="ban_ac")],
-        [InlineKeyboardButton("\ud83d\udd01 VPN kod üýtget", callback_data="vpn_uytget")],
-        [InlineKeyboardButton("\ud83d\udce2 Bildiriş ugrat", callback_data="bildiris")],
-        [InlineKeyboardButton("\u2795 Kanal Goş", callback_data="kanal_gos")],
-        [InlineKeyboardButton("\u2796 Kanal Aýyr", callback_data="kanal_ayyr")],
-        [InlineKeyboardButton("\ud83d\udc64➕ Admin Goş", callback_data="admin_gos")],
-        [InlineKeyboardButton("\ud83d\udc64➖ Admin Aýyr", callback_data="admin_ayyr")]
-    ])
-    await update.message.reply_text("\ud83d\udee0 Admin panel:", reply_markup=admin_keyboard)
+    elif query.data == "panel":
+        if user_id not in adminler:
+            await query.message.reply_text("❌ Bu diňe admin üçin.")
+            return
+        await show_panel(update, context)
 
-async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-
-    if user_id not in adminler:
-        return
-
-    context_data = context.user_data
-
-    if query.data == "banla":
-        await query.message.reply_text("Banlamak üçin ulanyjynyň ID-sini ýaz:")
-        context_data["banla"] = True
+    elif query.data == "banla":
+        context.user_data["banla"] = True
+        await query.message.reply_text("Ulanyjy ID giriziň (banlamak üçin):")
 
     elif query.data == "ban_ac":
-        await query.message.reply_text("Ban açmak üçin ID-ni ýaz:")
-        context_data["ban_ac"] = True
+        context.user_data["ban_ac"] = True
+        await query.message.reply_text("ID giriziň (ban açmak üçin):")
 
     elif query.data == "vpn_uytget":
-        await query.message.reply_text("Täze VPN koduny giriz:")
-        context_data["vpn_uytget"] = True
+        context.user_data["vpn_uytget"] = True
+        await query.message.reply_text("Täze VPN koduny giriziň:")
 
     elif query.data == "bildiris":
-        await query.message.reply_text("Ugratmaly bildirişi ýaz:")
-        context_data["bildiris"] = True
+        context.user_data["bildiris"] = True
+        await query.message.reply_text("Bildirişi giriziň:")
 
     elif query.data == "kanal_gos":
-        await query.message.reply_text("Täze kanal ady we URL giriziň:\nMysal: Kanal Ady | https://t.me/kanal")
-        context_data["kanal_gos"] = True
+        context.user_data["kanal_gos"] = True
+        await query.message.reply_text("Kanal ady we URL giriziň. Mysal: Kanal Ady | https://t.me/kanal")
 
     elif query.data == "kanal_ayyr":
         if not kanallar:
-            await query.message.reply_text("\ud83d\udccd Häzirki wagtda kanal ýok.")
-            return
-        kanal_list = "\n".join(f"{i+1}. {ad} ({url})" for i, (ad, url) in enumerate(kanallar))
-        await query.message.reply_text(f"Aýyrmak isleýän kanalyňyzyň belgisi:\n{kanal_list}")
-        context_data["kanal_ayyr"] = True
+            await query.message.reply_text("📭 Kanal ýok.")
+        else:
+            kanal_list = "\n".join(f"{i+1}. {ad}" for i, (ad, _) in enumerate(kanallar))
+            await query.message.reply_text(f"Aýyrmak isleýän kanalyňyzyň belgisi:\n{kanal_list}")
+            context.user_data["kanal_ayyr"] = True
 
     elif query.data == "admin_gos":
-        await query.message.reply_text("Täze adminiň Telegram ID-sini giriziň:")
-        context_data["admin_gos"] = True
+        context.user_data["admin_gos"] = True
+        await query.message.reply_text("Täze admin ID giriziň:")
 
     elif query.data == "admin_ayyr":
         if len(adminler) <= 1:
-            await query.message.reply_text("⚠️ Diňe bir admin bar, aýrylyp bilinmez.")
+            await query.message.reply_text("⚠️ Diňe bir admin bar.")
             return
-        admin_list = "\n".join(f"{i+1}. {aid}" for i, aid in enumerate(adminler))
-        await query.message.reply_text(
-            "Aýyrmak isleýän adminiň ID-sini giriziň:\n" + admin_list
-        )
-        context_data["admin_ayyr"] = True
+        admin_list = "\n".join(str(aid) for aid in adminler)
+        await query.message.reply_text(f"Aýyrmak isleýän adminiň ID-si:\n{admin_list}")
+        context.user_data["admin_ayyr"] = True
+
+async def show_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚫 Ban ulanyjy", callback_data="banla")],
+        [InlineKeyboardButton("♻️ Ban aç", callback_data="ban_ac")],
+        [InlineKeyboardButton("🔁 VPN kod üýtget", callback_data="vpn_uytget")],
+        [InlineKeyboardButton("📢 Bildiriş ugrat", callback_data="bildiris")],
+        [InlineKeyboardButton("➕ Kanal Goş", callback_data="kanal_gos")],
+        [InlineKeyboardButton("➖ Kanal Aýyr", callback_data="kanal_ayyr")],
+        [InlineKeyboardButton("👤➕ Admin Goş", callback_data="admin_gos")],
+        [InlineKeyboardButton("👤➖ Admin Aýyr", callback_data="admin_ayyr")]
+    ])
+    await update.message.reply_text("🛠 Admin panel:", reply_markup=admin_keyboard)
+
+async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in adminler:
+        return
+    await show_panel(update, context)
 
 async def mesaj_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
-    context_data = context.user_data
 
-    if context_data.get("banla"):
+    if context.user_data.get("banla"):
         try:
             banlananlar.append(int(text))
-            await update.message.reply_text("✅ Ulanyjy banlandy!")
+            await update.message.reply_text("✅ Banlandy.")
         except:
-            await update.message.reply_text("❌ Nädogry ID!")
-        del context_data["banla"]
+            await update.message.reply_text("❌ Nädogry ID")
+        del context.user_data["banla"]
 
-    elif context_data.get("ban_ac"):
+    elif context.user_data.get("ban_ac"):
         try:
             banlananlar.remove(int(text))
-            await update.message.reply_text("✅ Ban açyldy!")
+            await update.message.reply_text("✅ Ban açyldy.")
         except:
-            await update.message.reply_text("❌ ID tapylmady!")
-        del context_data["ban_ac"]
+            await update.message.reply_text("❌ ID tapylmady")
+        del context.user_data["ban_ac"]
 
-    elif context_data.get("vpn_uytget"):
+    elif context.user_data.get("vpn_uytget"):
         global vpn_kody
         vpn_kody = text
-        await update.message.reply_text("✅ Täze VPN kody girizildi!")
-        del context_data["vpn_uytget"]
+        await update.message.reply_text("✅ Kody üýtgedildi.")
+        del context.user_data["vpn_uytget"]
 
-    elif context_data.get("bildiris"):
+    elif context.user_data.get("bildiris"):
         for uid in ulanyjylar:
             try:
                 await context.bot.send_message(chat_id=uid, text=f"📢 Bildiriş:\n{text}")
-            except Exception as e:
-                print(f"❌ Ugratmak bolmady: {uid} → {e}")
-        await update.message.reply_text("📢 Bildiriş ugradyldy!")
-        del context_data["bildiris"]
+            except:
+                pass
+        await update.message.reply_text("✅ Bildiriş ugradyldy!")
+        del context.user_data["bildiris"]
 
-    elif context_data.get("kanal_gos"):
+    elif context.user_data.get("kanal_gos"):
         try:
             ad, url = map(str.strip, text.split("|"))
             if not url.startswith("https://t.me/"):
-                raise ValueError("URL nädogry")
+                raise ValueError
             kanallar.append((ad, url))
-            await update.message.reply_text("✅ Kanal goşuldy!")
+            await update.message.reply_text("✅ Kanal goşuldy")
         except:
-            await update.message.reply_text("❌ Format nädogry. Mysal: Kanal Ady | https://t.me/kanal")
-        del context_data["kanal_gos"]
+            await update.message.reply_text("❌ Format ýalňyş. Mysal: Ady | https://t.me/kanal")
+        del context.user_data["kanal_gos"]
 
-    elif context_data.get("kanal_ayyr"):
+    elif context.user_data.get("kanal_ayyr"):
         try:
             indeks = int(text) - 1
             pozuldy = kanallar.pop(indeks)
             await update.message.reply_text(f"❎ Kanal aýryldy: {pozuldy[0]}")
         except:
-            await update.message.reply_text("❌ Nädogry belgä girildi.")
-        del context_data["kanal_ayyr"]
+            await update.message.reply_text("❌ Nädogry belgi")
+        del context.user_data["kanal_ayyr"]
 
-    elif context_data.get("admin_gos"):
+    elif context.user_data.get("admin_gos"):
         try:
-            täze_id = int(text)
-            if täze_id in adminler:
-                await update.message.reply_text("ℹ️ Bu ulanyjy eýýäm admin.")
+            täze = int(text)
+            if täze in adminler:
+                await update.message.reply_text("🔁 Eýýäm admin")
             else:
-                adminler.add(täze_id)
-                await update.message.reply_text(f"✅ Täze admin goşuldy! ID: {täze_id}")
+                adminler.add(täze)
+                await update.message.reply_text("✅ Täze admin goşuldy")
         except:
-            await update.message.reply_text("❌ Nädogry ID formaty!")
-        del context_data["admin_gos"]
+            await update.message.reply_text("❌ ID nädogry")
+        del context.user_data["admin_gos"]
 
-    elif context_data.get("admin_ayyr"):
+    elif context.user_data.get("admin_ayyr"):
         try:
-            ayrylýan_id = int(text)
-            if ayrylýan_id not in adminler:
-                await update.message.reply_text("❌ Bu ID admin däl!")
+            aid = int(text)
+            if aid not in adminler:
+                await update.message.reply_text("❌ Admin tapylmady")
             elif len(adminler) == 1:
-                await update.message.reply_text("⚠️ Diňe bir admin bar, aýryp bolmaýar.")
-            elif ayrylýan_id == user_id:
-                await update.message.reply_text("⚠️ Siz özüňizi adminlikden aýryp bilmersiňiz!")
+                await update.message.reply_text("⚠️ Diňe bir admin bar")
             else:
-                adminler.remove(ayrylýan_id)
-                await update.message.reply_text(f"✅ Admin aýryldy: {ayrylýan_id}")
+                adminler.remove(aid)
+                await update.message.reply_text("✅ Admin aýryldy")
         except:
-            await update.message.reply_text("❌ ID formaty nädogry!")
-        del context_data["admin_ayyr"]
+            await update.message.reply_text("❌ ID nädogry")
+        del context.user_data["admin_ayyr"]
 
-# === Boty işledýän ===
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(callback_handler, pattern="^kody_al$"))
-app.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(banla|ban_ac|vpn_uytget|bildiris|kanal_gos|kanal_ayyr|admin_gos|admin_ayyr)$"))
 app.add_handler(CommandHandler("panel", panel))
+app.add_handler(CallbackQueryHandler(callback_handler))
 app.add_handler(MessageHandler(filters.TEXT, mesaj_handler))
 
 print("✅ Bot başlady!")
