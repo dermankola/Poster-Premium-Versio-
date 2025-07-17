@@ -36,11 +36,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🚫 Siz banlandyňyz.")
         return
 
-    kanal_buttons = [InlineKeyboardButton(name, url=url) for name, url in kanallar]
-    keyboard = InlineKeyboardMarkup([
-        kanal_buttons,
-        [InlineKeyboardButton("✅ Kody alyň", callback_data="kody_al")]
-    ])
+    kanal_buttons = []
+    row = []
+
+    for i, (name, url) in enumerate(kanallar, 1):
+        row.append(InlineKeyboardButton(name, url=url))
+        if i % 3 == 0:
+            kanal_buttons.append(row)
+            row = []
+
+    if row:
+        kanal_buttons.append(row)
+
+    kanal_buttons.append([InlineKeyboardButton("✅ Kody alyň", callback_data="kody_al")])
+    keyboard = InlineKeyboardMarkup(kanal_buttons)
+
     await update.message.reply_text("👋 Kanallara goşulyň we VPN kody alyň:", reply_markup=keyboard)
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -222,4 +232,3 @@ app.add_handler(MessageHandler(filters.TEXT, mesaj_handler))
 
 print("✅ Bot başlady!")
 app.run_polling()
-    
